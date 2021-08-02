@@ -88,6 +88,22 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "fuzzing_test",
+    size = "small",
+    tags = ["manual"],
+    srcs = ["fuzzing_test.cc"],
+    deps = [
+        "//base:status_macros",
+        "//eval/public:activation",
+        "//eval/public:builtin_func_registrar",
+        "//eval/public:cel_expr_builder_factory",
+        "//eval/public:cel_expression",
+        "//eval/public:cel_value",
+        "@com_google_googletest//:gtest_main"
+    ]
+)
+
 proto_library(
     name = "request_context_protos",
     srcs = [
