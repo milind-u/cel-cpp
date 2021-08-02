@@ -24,7 +24,7 @@ namespace {
 
 // Helper function for testing integer overflow
 template <typename T>
-void TestIntOverflow(const T const_expr_value, const uint64_t var,
+void TestIntOverflow(const T &const_expr_value, const uint64_t var,
                      const bool expect_parsing_success = true) {
   static constexpr absl::string_view kIntOperatorExpr =
       R"pb(
