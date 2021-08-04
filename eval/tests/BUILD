@@ -91,8 +91,8 @@ cc_test(
 cc_test(
     name = "fuzzing_test",
     size = "small",
-    tags = ["manual"],
     srcs = ["fuzzing_test.cc"],
+    tags = ["manual"],
     deps = [
         "//base:status_macros",
         "//eval/public:activation",
@@ -100,8 +100,8 @@ cc_test(
         "//eval/public:cel_expr_builder_factory",
         "//eval/public:cel_expression",
         "//eval/public:cel_value",
-        "@com_google_googletest//:gtest_main"
-    ]
+        "@com_google_googletest//:gtest_main",
+    ],
 )
 
 proto_library(
