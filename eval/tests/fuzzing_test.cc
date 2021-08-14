@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <sstream>
@@ -25,16 +26,32 @@ namespace {
 
 std::unique_ptr<CelExpression> CreateExpression(
     const v1alpha1::Expr &expr, const v1alpha1::SourceInfo &source_info,
-    const bool expect_expr_ok = true) {
+    const bool expect_expr_ok = true, const bool check_ok = true) {
   auto builder = CreateCelExpressionBuilder();
   EXPECT_OK(RegisterBuiltinFunctions(builder->GetRegistry()));
 
   auto cel_expr_status = builder->CreateExpression(&expr, &source_info);
-  EXPECT_EQ(cel_expr_status.ok(), expect_expr_ok);
+  if (check_ok) {
+    EXPECT_EQ(cel_expr_status.ok(), expect_expr_ok);
+  }
   if (!cel_expr_status.ok()) {
     LOG(ERROR) << cel_expr_status.status().message().data();
   }
   return (cel_expr_status.ok() ? std::move(cel_expr_status.value()) : nullptr);
+}
+
+void Eval(std::unique_ptr<CelExpression> cel_expr,
+          const Activation &activation) {
+  protobuf::Arena arena;
+  const auto eval_status = cel_expr->Evaluate(activation, &arena);
+  EXPECT_TRUE(!eval_status.ok() ||
+              eval_status.value().type() == CelValue::Type::kError);
+  if (eval_status.ok()) {
+    LOG(INFO) << "Eval result: " << eval_status.value().DebugString();
+  } else {
+    LOG(ERROR) << "eval status message: "
+               << eval_status.status().message().data();
+  }
 }
 
 // Helper function for testing integer overflow
@@ -65,28 +82,16 @@ void TestIntOverflow(const T &const_expr_value, const uint64_t var,
 
   if (parsing_success) {
     auto cel_expr = CreateExpression(expr, source_info);
-
     Activation activation;
-
     activation.InsertValue("var", CelValue::CreateInt64(var));
-
-    protobuf::Arena arena;
-    const auto eval_status = cel_expr->Evaluate(activation, &arena);
-    EXPECT_TRUE(!eval_status.ok() ||
-                eval_status.value().type() == CelValue::Type::kError);
-    if (eval_status.ok()) {
-      LOG(INFO) << "Eval result: " << eval_status.value().DebugString();
-    } else {
-      LOG(ERROR) << "eval status message: "
-                 << eval_status.status().message().data();
-    }
+    Eval(std::move(cel_expr), activation);
   }
 }
 
 // Tests int64 values or results of int operations that are numbers greater
 // than or equal to 2^63
 TEST(FuzzingTest, IntOverflow) {
-  const int64_t kInt64MaxValue = std::pow(2.0, 63.0) - 1;
+  const int64_t kInt64MaxValue = std::pow(2.0, 63.0) - 1.0;
   const int kMaxValueDigits = std::log10(kInt64MaxValue) + 1;
 
   // The resulting product of the two args will have an int overflow
@@ -104,37 +109,58 @@ TEST(FuzzingTest, IntOverflow) {
   }
 }
 
-void TestNoArgsToOperator(const absl::string_view operator_symbol) {
-  static constexpr absl::string_view kOperatorExpr = R"(
+void TestNoArgsToOperator(const std::string &ast) {
+  LOG(INFO) << "ast: " << ast;
+
+  v1alpha1::Expr expr;
+  v1alpha1::SourceInfo source_info;
+  ASSERT_TRUE(protobuf::TextFormat::ParseFromString(ast, &expr));
+
+  auto cel_expr = CreateExpression(expr, source_info, false, false);
+  if (cel_expr) {
+    Activation activation;
+    Eval(std::move(cel_expr), activation);
+  }
+}
+
+// Tests expressions containing operators without arguments and with blank ones
+TEST(FuzzingTest, NoArgsToOperator) {
+  constexpr absl::string_view kNoArgsExpr = R"(
     call_expr: <
       function: "%s"
     >
   )";
-  v1alpha1::Expr expr;
-  v1alpha1::SourceInfo source_info;
-  ASSERT_TRUE(protobuf::TextFormat::ParseFromString(
-      absl::StrFormat(kOperatorExpr, operator_symbol), &expr));
+  constexpr absl::string_view kBlankArgsExpr = R"(
+    call_expr: <
+      function: "%s"
+      args: <
+      >
+      %s
+    >
+  )";
+  constexpr absl::string_view kEmptyArgs = "args: <>";
 
-  const auto cel_expr = CreateExpression(expr, source_info, false);
-  if (cel_expr) {
-    LOG(ERROR) << "CEL Expression creation should not have been ok";
-
-    Activation activation;
-    protobuf::Arena arena;
-    const auto eval_status = cel_expr->Evaluate(activation, &arena);
-    LOG(INFO) << eval_status.status().message().data();
-    EXPECT_TRUE(!eval_status.ok() ||
-                eval_status.value().type() == CelValue::Type::kError);
-  }
-}
-
-// Tests expressions containing operators without arguments
-TEST(FuzzingTest, NoArgsToOperator) {
-  constexpr std::array<absl::string_view, 16> kOperators = {
-      "!", "*", "/",  "%",  "+",  "-",  "==", "!=",
-      "<", ">", "<=", ">=", "in", "&&", "||", "?:"};
+  constexpr std::array<absl::string_view, 17> kOperators = {
+      "_!",  "-_",  "_*_",  "_/_",  "_%_",  "_+_",  "_-_",  "_==_", "_!=_",
+      "_<_", "_>_", "_<=_", "_>=_", "_in_", "_&&_", "_||_", "_?_:_"};
   for (const auto operator_symbol : kOperators) {
-    TestNoArgsToOperator(operator_symbol);
+    TestNoArgsToOperator(absl::StrFormat(kNoArgsExpr, operator_symbol));
+
+    const int num_operands =
+        std::count(operator_symbol.begin(), operator_symbol.end(), '_');
+
+    // First empty arg is already included
+    std::stringstream empty_args;
+    for (int i = 0; i < num_operands - 1; i++) {
+      empty_args << kEmptyArgs;
+      if (i != num_operands - 2) {
+        empty_args << "\n      ";
+      }
+    }
+
+    const auto ast =
+        absl::StrFormat(kBlankArgsExpr, operator_symbol, empty_args.str());
+    TestNoArgsToOperator(ast);
   }
 }
 
