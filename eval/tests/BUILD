@@ -101,6 +101,7 @@ cc_test(
         "//eval/public:cel_expression",
         "//eval/public:cel_value",
         "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 

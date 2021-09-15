@@ -2,6 +2,7 @@
 #include <cmath>
 #include <memory>
 #include <sstream>
+#include <string>
 
 #include "absl/strings/str_format.h"
 #include "base/status_macros.h"
@@ -25,33 +26,42 @@ namespace {
 #define LOG(level) GOOGLE_LOG(level)
 
 std::unique_ptr<CelExpression> CreateExpression(
-    const v1alpha1::Expr &expr, const v1alpha1::SourceInfo &source_info,
-    const bool expect_expr_ok = true, const bool check_ok = true) {
+    const v1alpha1::Expr &expr, const bool expect_expr_ok = true,
+    const bool check_ok = true) {
   auto builder = CreateCelExpressionBuilder();
   EXPECT_OK(RegisterBuiltinFunctions(builder->GetRegistry()));
 
+  v1alpha1::SourceInfo source_info;
   auto cel_expr_status = builder->CreateExpression(&expr, &source_info);
   if (check_ok) {
     EXPECT_EQ(cel_expr_status.ok(), expect_expr_ok);
   }
   if (!cel_expr_status.ok()) {
     LOG(ERROR) << cel_expr_status.status().message().data();
+    return nullptr;
   }
-  return (cel_expr_status.ok() ? std::move(cel_expr_status.value()) : nullptr);
+  return std::move(cel_expr_status.value());
 }
 
-void Eval(std::unique_ptr<CelExpression> cel_expr,
-          const Activation &activation) {
+absl::StatusOr<CelValue> Eval(std::unique_ptr<CelExpression> cel_expr,
+                              const Activation &activation,
+                              const bool expect_err = true) {
+  EXPECT_TRUE(cel_expr);
+
   protobuf::Arena arena;
   const auto eval_status = cel_expr->Evaluate(activation, &arena);
-  EXPECT_TRUE(!eval_status.ok() ||
-              eval_status.value().type() == CelValue::Type::kError);
-  if (eval_status.ok()) {
-    LOG(INFO) << "Eval result: " << eval_status.value().DebugString();
-  } else {
-    LOG(ERROR) << "eval status message: "
-               << eval_status.status().message().data();
+
+  if (expect_err) {
+    EXPECT_TRUE(!eval_status.ok() ||
+                eval_status.value().type() == CelValue::Type::kError);
+    if (eval_status.ok()) {
+      LOG(INFO) << "Eval result: " << eval_status.value().DebugString();
+    } else {
+      LOG(ERROR) << "eval status message: "
+                 << eval_status.status().message().data();
+    }
   }
+  return eval_status;
 }
 
 // Helper function for testing integer overflow
@@ -74,17 +84,16 @@ void TestIntOverflow(const T &const_expr_value, const uint64_t var,
   )pb";
 
   v1alpha1::Expr expr;
-  v1alpha1::SourceInfo source_info;
   // Make the const_expr int64_value a large int
   const bool parsing_success = protobuf::TextFormat::ParseFromString(
       absl::StrFormat(kIntOperatorExpr, const_expr_value), &expr);
   ASSERT_EQ(parsing_success, expect_parsing_success);
 
   if (parsing_success) {
-    auto cel_expr = CreateExpression(expr, source_info);
+    auto cel_expr = CreateExpression(expr);
     Activation activation;
     activation.InsertValue("var", CelValue::CreateInt64(var));
-    Eval(std::move(cel_expr), activation);
+    Eval(std::move(cel_expr), activation).IgnoreError();
   }
 }
 
@@ -113,13 +122,12 @@ void TestNoArgsToOperator(const std::string &ast) {
   LOG(INFO) << "ast: " << ast;
 
   v1alpha1::Expr expr;
-  v1alpha1::SourceInfo source_info;
   ASSERT_TRUE(protobuf::TextFormat::ParseFromString(ast, &expr));
 
-  auto cel_expr = CreateExpression(expr, source_info, false, false);
+  auto cel_expr = CreateExpression(expr, false, false);
   if (cel_expr) {
     Activation activation;
-    Eval(std::move(cel_expr), activation);
+    Eval(std::move(cel_expr), activation).IgnoreError();
   }
 }
 
@@ -161,6 +169,81 @@ TEST(FuzzingTest, NoArgsToOperator) {
     const auto ast =
         absl::StrFormat(kBlankArgsExpr, operator_symbol, empty_args.str());
     TestNoArgsToOperator(ast);
+  }
+}
+
+void FlipBitAt(const int bit, std::string &str) {
+  const int byte = bit / 8;
+  const int bitInByte = bit % 8;
+  str[byte] ^= (1 << bitInByte);
+}
+
+void FlipByteAt(const int byte, std::string &str) {
+  for (int i = 0; i < 8; i++) {
+    FlipBitAt((byte * 8) + i, str);
+  }
+}
+
+void TestFlippingBits(const std::string &ser_expr,
+                      const v1alpha1::SourceInfo &source_info, v1alpha1::Expr &,
+                      CelExpressionBuilder *builder) {
+  v1alpha1::Expr expr;
+  expr.ParseFromString(ser_expr);
+
+  auto cel_expr_status = builder->CreateExpression(&expr, &source_info);
+
+  if (cel_expr_status.ok()) {
+    auto cel_expr = std::move(cel_expr_status.value());
+
+    Activation activation;
+    activation.InsertValue("var", CelValue::CreateInt64(12));
+
+    Eval(std::move(cel_expr), activation, false);
+  }
+}
+
+// Tests trying to compile and evaluate an expression after
+// flipping bits in its serialized format so that
+// it continues reading an int value past its actual end.
+TEST(FuzzingTest, FlippingBitsInSerializedExpr) {
+  constexpr auto kExpr = R"(
+    call_expr: <
+      function: "_+_"
+      args: <
+        ident_expr: <
+          name: "var"
+        >
+      >
+      args: <
+        const_expr: <
+          int64_value: 1
+        >
+      >
+    >
+  )";
+
+  v1alpha1::Expr expr;
+  ASSERT_TRUE(protobuf::TextFormat::ParseFromString(kExpr, &expr));
+
+  std::string ser_expr;
+  ASSERT_TRUE(expr.SerializeToString(&ser_expr));
+
+  auto builder = CreateCelExpressionBuilder();
+  EXPECT_OK(RegisterBuiltinFunctions(builder->GetRegistry()));
+  v1alpha1::SourceInfo source_info;
+
+  // Try flipping each bit in the serialized expression
+  for (size_t i = 0; i < ser_expr.size() * 8; i++) {
+    FlipBitAt(i, ser_expr);
+    TestFlippingBits(ser_expr, source_info, expr, builder.get());
+    FlipBitAt(i, ser_expr);
+  }
+
+  // Try flipping each byte in the serialized expression
+  for (size_t i = 0; i < ser_expr.size() - 1; i++) {
+    FlipByteAt(i, ser_expr);
+    TestFlippingBits(ser_expr, source_info, expr, builder.get());
+    FlipByteAt(i, ser_expr);
   }
 }
 
