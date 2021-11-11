@@ -30,8 +30,8 @@ std::unique_ptr<CelExpression> CreateExpression(
     const bool check_ok = true) {
   auto builder = CreateCelExpressionBuilder();
   EXPECT_OK(RegisterBuiltinFunctions(builder->GetRegistry()));
-
   v1alpha1::SourceInfo source_info;
+
   auto cel_expr_status = builder->CreateExpression(&expr, &source_info);
   if (check_ok) {
     EXPECT_EQ(cel_expr_status.ok(), expect_expr_ok);
@@ -185,7 +185,7 @@ void FlipByteAt(const int byte, std::string &str) {
 }
 
 void TestFlippingBits(const std::string &ser_expr,
-                      const v1alpha1::SourceInfo &source_info, v1alpha1::Expr &,
+                      const v1alpha1::SourceInfo &source_info,
                       CelExpressionBuilder *builder) {
   v1alpha1::Expr expr;
   expr.ParseFromString(ser_expr);
@@ -235,15 +235,27 @@ TEST(FuzzingTest, FlippingBitsInSerializedExpr) {
   // Try flipping each bit in the serialized expression
   for (size_t i = 0; i < ser_expr.size() * 8; i++) {
     FlipBitAt(i, ser_expr);
-    TestFlippingBits(ser_expr, source_info, expr, builder.get());
+    TestFlippingBits(ser_expr, source_info, builder.get());
     FlipBitAt(i, ser_expr);
   }
 
   // Try flipping each byte in the serialized expression
   for (size_t i = 0; i < ser_expr.size() - 1; i++) {
     FlipByteAt(i, ser_expr);
-    TestFlippingBits(ser_expr, source_info, expr, builder.get());
+    TestFlippingBits(ser_expr, source_info, builder.get());
     FlipByteAt(i, ser_expr);
+  }
+
+  // Flip random bits
+  constexpr int kRandSeed = 34531;
+  std::srand(kRandSeed);
+  for (int i = 0; i < 1000; i++) {
+    const std::string ser_expr_cp = ser_expr;
+    const int bitsToFlip = std::rand() % (ser_expr_cp.size() / 3);
+    for (int j = 0; j < bitsToFlip; j++) {
+      FlipBitAt(std::rand() % ser_expr_cp.size(), ser_expr);
+      TestFlippingBits(ser_expr_cp, source_info, builder.get());
+    }
   }
 }
 
