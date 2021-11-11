@@ -6,14 +6,11 @@
 #include "eval/public/cel_function_registry.h"
 #include "eval/public/containers/container_backed_list_impl.h"
 
-namespace google {
-namespace api {
-namespace expr {
-namespace runtime {
+namespace google::api::expr::runtime {
 
 namespace {
 
-using google::api::expr::v1alpha1::Expr;
+using ::google::api::expr::v1alpha1::Expr;
 
 class ConstantFoldingTransform {
  public:
@@ -35,7 +32,7 @@ class ConstantFoldingTransform {
         // since the output expression is temporary
         auto value = ConvertConstant(&expr.const_expr());
         if (value.has_value()) {
-          makeConstant(value.value(), out);
+          makeConstant(*value, out);
           return true;
         } else {
           out->mutable_const_expr()->MergeFrom(expr.const_expr());
@@ -224,7 +221,4 @@ void FoldConstants(const Expr& expr, const CelFunctionRegistry& registry,
   constant_folder.Transform(expr, out);
 }
 
-}  // namespace runtime
-}  // namespace expr
-}  // namespace api
-}  // namespace google
+}  // namespace google::api::expr::runtime

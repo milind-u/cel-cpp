@@ -1,6 +1,7 @@
 #ifndef THIRD_PARTY_CEL_CPP_EVAL_PUBLIC_CEL_EXPRESSION_H_
 #define THIRD_PARTY_CEL_CPP_EVAL_PUBLIC_CEL_EXPRESSION_H_
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 
@@ -8,16 +9,13 @@
 #include "google/api/expr/v1alpha1/syntax.pb.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "eval/public/activation.h"
+#include "eval/public/base_activation.h"
 #include "eval/public/cel_function.h"
 #include "eval/public/cel_function_registry.h"
 #include "eval/public/cel_type_registry.h"
 #include "eval/public/cel_value.h"
 
-namespace google {
-namespace api {
-namespace expr {
-namespace runtime {
+namespace google::api::expr::runtime {
 
 // CelEvaluationListener is the callback that is passed to (and called by)
 // CelEvaluation::Trace. It gets an expression node ID from the original
@@ -147,9 +145,6 @@ class CelExpressionBuilder {
   std::string container_;
 };
 
-}  // namespace runtime
-}  // namespace expr
-}  // namespace api
-}  // namespace google
+}  // namespace google::api::expr::runtime
 
 #endif  // THIRD_PARTY_CEL_CPP_EVAL_PUBLIC_CEL_EXPRESSION_H_

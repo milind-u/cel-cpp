@@ -65,6 +65,7 @@ bool AddType(std::vector<CelValue::Type>* arg_types) {
 // It accepts method implementations as std::function, allowing
 // them to be lambdas/regular C++ functions. CEL method descriptors are
 // deduced based on C++ function signatures.
+//
 // CelFunction::Evaluate will set result to the value returned by the handler.
 // To handle errors, choose CelValue as the return type, and use the
 // CreateError/Create* helpers in cel_value.h.
@@ -75,12 +76,8 @@ bool AddType(std::vector<CelValue::Type>* arg_types) {
 //    return i < j;
 //  };
 //
-//  auto func_status =
-//      FunctionAdapter<bool, int64_t, int64_t>::Create("<", false, func);
-//
-//  if(func_status.ok()) {
-//     auto func = func_status.value();
-//  }
+//  CEL_ASSIGN_OR_RETURN(auto cel_func,
+//      FunctionAdapter<bool, int64_t, int64_t>::Create("<", false, func));
 template <typename ReturnType, typename... Arguments>
 class FunctionAdapter : public CelFunction {
  public:
@@ -121,7 +118,7 @@ class FunctionAdapter : public CelFunction {
     return registry->Register(std::move(status).value());
   }
 
-#if defined(__clang_major_version__) && __clang_major_version__ >= 8 && !defined(__APPLE__)
+#if defined(__clang__) || !defined(__GNUC__)
   template <int arg_index>
   inline absl::Status RunWrap(absl::Span<const CelValue> arguments,
                               std::tuple<::google::protobuf::Arena*, Arguments...> input,
@@ -177,7 +174,7 @@ class FunctionAdapter : public CelFunction {
                           "Argument number mismatch");
     }
 
-#if defined(__clang_major_version__) && __clang_major_version__ >= 8 && !defined(__APPLE__)
+#if defined(__clang__) || !defined(__GNUC__)
     std::tuple<::google::protobuf::Arena*, Arguments...> input;
     std::get<0>(input) = arena;
     return RunWrap<0>(arguments, input, result, arena);
@@ -295,11 +292,12 @@ class FunctionAdapter : public CelFunction {
 
   template <typename T>
   static absl::Status CreateReturnValue(const absl::StatusOr<T>& value,
-                                        ::google::protobuf::Arena*, CelValue*) {
-    if (!value) {
+                                        ::google::protobuf::Arena* arena,
+                                        CelValue* result) {
+    if (!value.ok()) {
       return value.status();
     }
-    return CreateReturnValue(value.value());
+    return CreateReturnValue(value.value(), arena, result);
   }
 
   FuncType handler_;

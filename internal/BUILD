@@ -8,164 +8,26 @@ package(default_visibility = ["//visibility:public"])
 licenses(["notice"])  # Apache 2.0
 
 cc_library(
-    name = "ref_countable",
-    srcs = ["ref_countable.cc"],
-    hdrs = [
-        "ref_countable.h",
-    ],
-    deps = [
-        ":holder",
-        ":specialize",
-        "@com_google_absl//absl/meta:type_traits",
-    ],
+    name = "casts",
+    hdrs = ["casts.h"],
 )
 
-cc_test(
-    name = "ref_countable_test",
-    srcs = ["ref_countable_test.cc"],
+cc_library(
+    name = "status_builder",
+    hdrs = ["status_builder.h"],
     deps = [
-        ":ref_countable",
-        "//testutil:util",
-        "@com_google_absl//absl/memory",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
     ],
 )
 
 cc_library(
-    name = "handle",
-    hdrs = [
-        "handle.h",
-    ],
+    name = "status_macros",
+    hdrs = ["status_macros.h"],
     deps = [
-        ":hash_util",
-        ":specialize",
-    ],
-)
-
-cc_test(
-    name = "handle_test",
-    srcs = ["handle_test.cc"],
-    deps = [
-        ":handle",
-        "@com_google_absl//absl/container:node_hash_set",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "holder",
-    hdrs = [
-        "holder.h",
-    ],
-    deps = [
-        ":specialize",
-        ":types",
-        ":visitor_util",
-        "@com_google_absl//absl/meta:type_traits",
-    ],
-)
-
-cc_test(
-    name = "holder_test",
-    srcs = ["holder_test.cc"],
-    deps = [
-        ":holder",
-        ":types",
-        "//testutil:util",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "hash_util",
-    srcs = [
-        "hash_util.cc",
-    ],
-    hdrs = [
-        "hash_util.h",
-    ],
-    deps = [
-        ":specialize",
-        "@com_google_absl//absl/meta:type_traits",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/time",
-        "@com_google_googleapis//google/rpc:status_cc_proto",
-        "@com_google_protobuf//:protobuf",
-    ],
-)
-
-cc_library(
-    name = "status_util",
-    srcs = ["status_util.cc"],
-    hdrs = [
-        "status_util.h",
-    ],
-    deps = [
-        "@com_google_absl//absl/strings",
-        "@com_google_googleapis//google/rpc:code_cc_proto",
-        "@com_google_googleapis//google/rpc:status_cc_proto",
-    ],
-)
-
-cc_library(
-    name = "visitor_util",
-    hdrs = [
-        "visitor_util.h",
-    ],
-    deps = [
-        ":specialize",
-        ":types",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/types:variant",
-    ],
-)
-
-cc_test(
-    name = "visitor_util_test",
-    srcs = ["visitor_util_test.cc"],
-    deps = [
-        ":adapter_util",
-        ":visitor_util",
-        "//testutil:util",
-        "@com_google_absl//absl/memory",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "adapter_util",
-    hdrs = [
-        "adapter_util.h",
-    ],
-    deps = [
-        ":visitor_util",
-    ],
-)
-
-cc_library(
-    name = "cel_printer",
-    srcs = ["cel_printer.cc"],
-    hdrs = [
-        "cel_printer.h",
-    ],
-    deps = [
-        ":specialize",
-        ":types",
-        ":visitor_util",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/time",
-        "@com_google_protobuf//:protobuf",
-    ],
-)
-
-cc_test(
-    name = "cel_printer_test",
-    srcs = ["cel_printer_test.cc"],
-    deps = [
-        ":cel_printer",
-        "@com_google_googletest//:gtest_main",
+        ":status_builder",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -174,8 +36,7 @@ cc_library(
     srcs = ["proto_util.cc"],
     hdrs = ["proto_util.h"],
     deps = [
-        "//base:status_macros",
-        "//common:macros",
+        ":status_macros",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -186,101 +47,20 @@ cc_library(
 )
 
 cc_library(
-    name = "map_impl",
-    srcs = ["map_impl.cc"],
-    hdrs = ["map_impl.h"],
-    deps = [
-        ":status_util",
-        "//common:macros",
-        "//common:value",
-        "@com_google_absl//absl/container:node_hash_map",
+    name = "testing",
+    testonly = True,
+    srcs = [
+        "testing.cc",
     ],
-)
-
-cc_library(
-    name = "list_impl",
-    hdrs = ["list_impl.h"],
-    deps = [
-        ":holder",
-        "//common:macros",
-        "//common:value",
-    ],
-)
-
-cc_library(
-    name = "value_internal",
-    hdrs = ["value_internal.h"],
-    deps = [
-        ":adapter_util",
-        ":cast",
-        ":ref_countable",
-        "//common:enum",
-        "//common:error",
-        "//common:id",
-        "//common:parent_ref",
-        "//common:type",
-        "//common:unknown",
-        "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/types:variant",
-    ],
-)
-
-cc_test(
-    name = "value_internal_test",
-    srcs = ["value_internal_test.cc"],
-    deps = [
-        ":value_internal",
-        "//testutil:util",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "specialize",
-    hdrs = ["specialize.h"],
-)
-
-cc_library(
-    name = "cast",
-    hdrs = ["cast.h"],
-    deps = [
-        ":specialize",
-        ":types",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/meta:type_traits",
-        "@com_google_absl//absl/types:optional",
-    ],
-)
-
-cc_test(
-    name = "cast_test",
-    srcs = ["cast_test.cc"],
-    deps = [
-        ":cast",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "types",
     hdrs = [
-        "types.h",
+        "testing.h",
     ],
     deps = [
-        ":specialize",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/meta:type_traits",
+        ":status_builder",
+        ":status_macros",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-    ],
-)
-
-cc_test(
-    name = "types_test",
-    srcs = ["types_test.cc"],
-    deps = [
-        ":types",
         "@com_google_googletest//:gtest_main",
     ],
 )

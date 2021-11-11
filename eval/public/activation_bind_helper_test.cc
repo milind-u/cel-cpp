@@ -1,12 +1,11 @@
 #include "eval/public/activation_bind_helper.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "eval/public/activation.h"
 #include "eval/testutil/test_message.pb.h"
+#include "internal/status_macros.h"
+#include "internal/testing.h"
 #include "testutil/util.h"
-#include "base/status_macros.h"
 
 namespace google {
 namespace api {
@@ -123,9 +122,9 @@ TEST(ActivationBindHelperTest, TestBindDefaultFields) {
 
   result = activation.FindValue("message_value", &arena);
   ASSERT_TRUE(result.has_value());
-  EXPECT_NE(nullptr, result.value().MessageOrDie());
+  EXPECT_NE(nullptr, result->MessageOrDie());
   EXPECT_THAT(TestMessage::default_instance(),
-              EqualsProto(*result.value().MessageOrDie()));
+              EqualsProto(*result->MessageOrDie()));
 }
 
 TEST(ActivationBindHelperTest, RejectsNullArena) {

@@ -1,23 +1,20 @@
 #include "eval/eval/expression_build_warning.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "internal/testing.h"
 
-namespace google {
-namespace api {
-namespace expr {
-namespace runtime {
+namespace google::api::expr::runtime {
 namespace {
 
+using cel::internal::IsOk;
 
 TEST(BuilderWarnings, NoFailCollects) {
   BuilderWarnings warnings(false);
 
   auto status = warnings.AddWarning(absl::InternalError("internal"));
-  EXPECT_TRUE(status.ok());
+  EXPECT_THAT(status, IsOk());
   auto status2 = warnings.AddWarning(absl::InternalError("internal error 2"));
-  EXPECT_TRUE(status2.ok());
+  EXPECT_THAT(status2, IsOk());
 
   EXPECT_THAT(warnings.warnings(), testing::SizeIs(2));
 }
@@ -30,7 +27,4 @@ TEST(BuilderWarnings, FailReturnsStatus) {
 }
 
 }  // namespace
-}  // namespace runtime
-}  // namespace expr
-}  // namespace api
-}  // namespace google
+}  // namespace google::api::expr::runtime

@@ -1,25 +1,21 @@
 #include "eval/eval/evaluator_core.h"
 
 #include "google/api/expr/v1alpha1/syntax.pb.h"
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "eval/compiler/flat_expr_builder.h"
 #include "eval/eval/attribute_trail.h"
+#include "eval/public/activation.h"
 #include "eval/public/builtin_func_registrar.h"
 #include "eval/public/cel_attribute.h"
 #include "eval/public/cel_value.h"
-#include "base/status_macros.h"
+#include "internal/status_macros.h"
+#include "internal/testing.h"
 
-namespace google {
-namespace api {
-namespace expr {
-namespace runtime {
+namespace google::api::expr::runtime {
 
-using google::api::expr::v1alpha1::Expr;
+using ::google::api::expr::v1alpha1::Expr;
 using ::google::api::expr::runtime::RegisterBuiltinFunctions;
 using testing::_;
 using testing::Eq;
-using testing::NotNull;
 
 // Fake expression implementation
 // Pushes int64_t(0) on top of value stack.
@@ -226,13 +222,10 @@ TEST(EvaluatorCoreTest, TraceTest) {
   result_expr->mutable_const_expr()->set_bool_value(true);
 
   FlatExprBuilder builder;
-  auto builtin_status = RegisterBuiltinFunctions(builder.GetRegistry());
-  ASSERT_OK(builtin_status);
+  ASSERT_OK(RegisterBuiltinFunctions(builder.GetRegistry()));
   builder.set_shortcircuiting(false);
-  auto build_status = builder.CreateExpression(&expr, &source_info);
-  ASSERT_OK(build_status);
-
-  auto cel_expr = std::move(build_status.value());
+  ASSERT_OK_AND_ASSIGN(auto cel_expr,
+                       builder.CreateExpression(&expr, &source_info));
 
   Activation activation;
   google::protobuf::Arena arena;
@@ -265,7 +258,4 @@ TEST(EvaluatorCoreTest, TraceTest) {
   ASSERT_OK(eval_status);
 }
 
-}  // namespace runtime
-}  // namespace expr
-}  // namespace api
-}  // namespace google
+}  // namespace google::api::expr::runtime

@@ -1,13 +1,11 @@
 #include "eval/public/cel_function_provider.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-#include "base/status_macros.h"
+#include "eval/public/activation.h"
+#include "internal/status_macros.h"
+#include "internal/testing.h"
 
-namespace google {
-namespace api {
-namespace expr {
-namespace runtime {
+namespace google::api::expr::runtime {
+
 namespace {
 
 using testing::Eq;
@@ -31,8 +29,8 @@ TEST(CreateActivationFunctionProviderTest, NoOverloadFound) {
 
   auto func = provider->GetFunction({"LazyFunc", false, {}}, activation);
 
-  ASSERT_OK(func.status());
-  EXPECT_THAT(func.value(), Eq(nullptr));
+  ASSERT_OK(func);
+  EXPECT_THAT(*func, Eq(nullptr));
 }
 
 TEST(CreateActivationFunctionProviderTest, OverloadFound) {
@@ -46,8 +44,8 @@ TEST(CreateActivationFunctionProviderTest, OverloadFound) {
 
   auto func = provider->GetFunction(desc, activation);
 
-  ASSERT_OK(func.status());
-  EXPECT_THAT(func.value(), Ne(nullptr));
+  ASSERT_OK(func);
+  EXPECT_THAT(*func, Ne(nullptr));
 }
 
 TEST(CreateActivationFunctionProviderTest, AmbiguousLookup) {
@@ -71,7 +69,5 @@ TEST(CreateActivationFunctionProviderTest, AmbiguousLookup) {
 }
 
 }  // namespace
-}  // namespace runtime
-}  // namespace expr
-}  // namespace api
-}  // namespace google
+
+}  // namespace google::api::expr::runtime

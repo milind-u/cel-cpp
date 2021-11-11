@@ -1,5 +1,7 @@
 #include "eval/compiler/resolver.h"
 
+#include <cstdint>
+
 #include "google/protobuf/descriptor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -7,10 +9,7 @@
 #include "absl/types/optional.h"
 #include "eval/public/cel_builtins.h"
 
-namespace google {
-namespace api {
-namespace expr {
-namespace runtime {
+namespace google::api::expr::runtime {
 
 Resolver::Resolver(absl::string_view container,
                    const CelFunctionRegistry* function_registry,
@@ -100,7 +99,7 @@ absl::optional<CelValue> Resolver::FindConstant(absl::string_view name,
     if (resolve_qualified_type_identifiers_ || !absl::StrContains(name, ".")) {
       auto type_value = type_registry_->FindType(name);
       if (type_value.has_value()) {
-        return type_value.value();
+        return *type_value;
       }
     }
   }
@@ -158,7 +157,4 @@ const google::protobuf::Descriptor* Resolver::FindDescriptor(absl::string_view n
   return nullptr;
 }
 
-}  // namespace runtime
-}  // namespace expr
-}  // namespace api
-}  // namespace google
+}  // namespace google::api::expr::runtime

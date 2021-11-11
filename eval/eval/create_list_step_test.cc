@@ -1,7 +1,5 @@
 #include "eval/eval/create_list_step.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "eval/eval/const_value_step.h"
@@ -9,16 +7,16 @@
 #include "eval/public/activation.h"
 #include "eval/public/cel_attribute.h"
 #include "eval/public/unknown_attribute_set.h"
-#include "base/status_macros.h"
+#include "internal/status_macros.h"
+#include "internal/testing.h"
 
-namespace google {
-namespace api {
-namespace expr {
-namespace runtime {
+namespace google::api::expr::runtime {
+
 namespace {
 
 using testing::Eq;
 using testing::Not;
+using cel::internal::IsOk;
 
 using google::api::expr::v1alpha1::Expr;
 
@@ -33,22 +31,16 @@ absl::StatusOr<CelValue> RunExpression(const std::vector<int64_t>& values,
   for (auto value : values) {
     auto expr0 = create_list->add_elements();
     expr0->mutable_const_expr()->set_int64_value(value);
-    auto const_step_status = CreateConstValueStep(
-        ConvertConstant(&expr0->const_expr()).value(), expr0->id());
-    if (!const_step_status.ok()) {
-      return const_step_status.status();
-    }
-
-    path.push_back(std::move(const_step_status.value()));
+    CEL_ASSIGN_OR_RETURN(
+        auto const_step,
+        CreateConstValueStep(ConvertConstant(&expr0->const_expr()).value(),
+                             expr0->id()));
+    path.push_back(std::move(const_step));
   }
 
-  auto step0_status = CreateCreateListStep(create_list, dummy_expr.id());
-
-  if (!step0_status.ok()) {
-    return step0_status.status();
-  }
-
-  path.push_back(std::move(step0_status.value()));
+  CEL_ASSIGN_OR_RETURN(auto step,
+                       CreateCreateListStep(create_list, dummy_expr.id()));
+  path.push_back(std::move(step));
 
   CelExpressionFlatImpl cel_expr(&dummy_expr, std::move(path), 0, {},
                                  enable_unknowns);
@@ -73,22 +65,15 @@ absl::StatusOr<CelValue> RunExpressionWithCelValues(
     expr0->set_id(ind);
     expr0->mutable_ident_expr()->set_name(var_name);
 
-    auto ident_step_status = CreateIdentStep(&expr0->ident_expr(), expr0->id());
-    if (!ident_step_status.ok()) {
-      return ident_step_status.status();
-    }
-
-    path.push_back(std::move(ident_step_status.value()));
+    CEL_ASSIGN_OR_RETURN(auto ident_step,
+                         CreateIdentStep(&expr0->ident_expr(), expr0->id()));
+    path.push_back(std::move(ident_step));
     activation.InsertValue(var_name, value);
   }
 
-  auto step0_status = CreateCreateListStep(create_list, dummy_expr.id());
-
-  if (!step0_status.ok()) {
-    return step0_status.status();
-  }
-
-  path.push_back(std::move(step0_status.value()));
+  CEL_ASSIGN_OR_RETURN(auto step0,
+                       CreateCreateListStep(create_list, dummy_expr.id()));
+  path.push_back(std::move(step0));
 
   CelExpressionFlatImpl cel_expr(&dummy_expr, std::move(path), 0, {},
                                  enable_unknowns);
@@ -108,11 +93,9 @@ TEST(CreateListStepTest, TestCreateListStackUnderflow) {
   auto expr0 = create_list->add_elements();
   expr0->mutable_const_expr()->set_int64_value(1);
 
-  auto step0_status = CreateCreateListStep(create_list, dummy_expr.id());
-
-  ASSERT_OK(step0_status);
-
-  path.push_back(std::move(step0_status.value()));
+  ASSERT_OK_AND_ASSIGN(auto step0,
+                       CreateCreateListStep(create_list, dummy_expr.id()));
+  path.push_back(std::move(step0));
 
   CelExpressionFlatImpl cel_expr(&dummy_expr, std::move(path), 0, {});
   Activation activation;
@@ -120,28 +103,23 @@ TEST(CreateListStepTest, TestCreateListStackUnderflow) {
   google::protobuf::Arena arena;
 
   auto status = cel_expr.Evaluate(activation, &arena);
-  ASSERT_FALSE(status.ok());
+  ASSERT_THAT(status, Not(IsOk()));
 }
 
 TEST_P(CreateListStepTest, CreateListEmpty) {
   google::protobuf::Arena arena;
-  auto eval_result = RunExpression({}, &arena, GetParam());
-
-  ASSERT_OK(eval_result);
-  const CelValue result_value = eval_result.value();
-  ASSERT_TRUE(result_value.IsList());
-  EXPECT_THAT(result_value.ListOrDie()->size(), Eq(0));
+  ASSERT_OK_AND_ASSIGN(CelValue result, RunExpression({}, &arena, GetParam()));
+  ASSERT_TRUE(result.IsList());
+  EXPECT_THAT(result.ListOrDie()->size(), Eq(0));
 }
 
 TEST_P(CreateListStepTest, CreateListOne) {
   google::protobuf::Arena arena;
-  auto eval_result = RunExpression({100}, &arena, GetParam());
-
-  ASSERT_OK(eval_result);
-  const CelValue result_value = eval_result.value();
-  ASSERT_TRUE(result_value.IsList());
-  EXPECT_THAT(result_value.ListOrDie()->size(), Eq(1));
-  EXPECT_THAT((*result_value.ListOrDie())[0].Int64OrDie(), Eq(100));
+  ASSERT_OK_AND_ASSIGN(CelValue result,
+                       RunExpression({100}, &arena, GetParam()));
+  ASSERT_TRUE(result.IsList());
+  EXPECT_THAT(result.ListOrDie()->size(), Eq(1));
+  EXPECT_THAT((*result.ListOrDie())[0].Int64OrDie(), Eq(100));
 }
 
 TEST_P(CreateListStepTest, CreateListWithError) {
@@ -149,13 +127,11 @@ TEST_P(CreateListStepTest, CreateListWithError) {
   std::vector<CelValue> values;
   CelError error = absl::InvalidArgumentError("bad arg");
   values.push_back(CelValue::CreateError(&error));
-  auto eval_result = RunExpressionWithCelValues(values, &arena, GetParam());
+  ASSERT_OK_AND_ASSIGN(CelValue result,
+                       RunExpressionWithCelValues(values, &arena, GetParam()));
 
-  ASSERT_OK(eval_result);
-  const CelValue result_value = eval_result.value();
-  ASSERT_TRUE(result_value.IsError());
-  EXPECT_THAT(*result_value.ErrorOrDie(),
-              Eq(absl::InvalidArgumentError("bad arg")));
+  ASSERT_TRUE(result.IsError());
+  EXPECT_THAT(*result.ErrorOrDie(), Eq(absl::InvalidArgumentError("bad arg")));
 }
 
 TEST_P(CreateListStepTest, CreateListWithErrorAndUnknown) {
@@ -170,14 +146,12 @@ TEST_P(CreateListStepTest, CreateListWithErrorAndUnknown) {
   CelError error = absl::InvalidArgumentError("bad arg");
   values.push_back(CelValue::CreateError(&error));
 
-  auto eval_result = RunExpressionWithCelValues(values, &arena, GetParam());
+  ASSERT_OK_AND_ASSIGN(CelValue result,
+                       RunExpressionWithCelValues(values, &arena, GetParam()));
 
   // The bad arg should win.
-  ASSERT_OK(eval_result);
-  const CelValue result_value = eval_result.value();
-  ASSERT_TRUE(result_value.IsError());
-  EXPECT_THAT(*result_value.ErrorOrDie(),
-              Eq(absl::InvalidArgumentError("bad arg")));
+  ASSERT_TRUE(result.IsError());
+  EXPECT_THAT(*result.ErrorOrDie(), Eq(absl::InvalidArgumentError("bad arg")));
 }
 
 TEST_P(CreateListStepTest, CreateListHundred) {
@@ -186,15 +160,12 @@ TEST_P(CreateListStepTest, CreateListHundred) {
   for (size_t i = 0; i < 100; i++) {
     values.push_back(i);
   }
-  auto eval_result = RunExpression(values, &arena, GetParam());
-
-  ASSERT_OK(eval_result);
-  const CelValue result_value = eval_result.value();
-  ASSERT_TRUE(result_value.IsList());
-  EXPECT_THAT(result_value.ListOrDie()->size(),
-              Eq(static_cast<int>(values.size())));
+  ASSERT_OK_AND_ASSIGN(CelValue result,
+                       RunExpression(values, &arena, GetParam()));
+  ASSERT_TRUE(result.IsList());
+  EXPECT_THAT(result.ListOrDie()->size(), Eq(static_cast<int>(values.size())));
   for (size_t i = 0; i < values.size(); i++) {
-    EXPECT_THAT((*result_value.ListOrDie())[i].Int64OrDie(), Eq(values[i]));
+    EXPECT_THAT((*result.ListOrDie())[i].Int64OrDie(), Eq(values[i]));
   }
 }
 
@@ -216,12 +187,10 @@ TEST(CreateListStepTest, CreateListHundredAnd2Unknowns) {
   values.push_back(CelValue::CreateUnknownSet(&unknown_set0));
   values.push_back(CelValue::CreateUnknownSet(&unknown_set1));
 
-  auto eval_result = RunExpressionWithCelValues(values, &arena, true);
-
-  ASSERT_OK(eval_result);
-  const CelValue result_value = eval_result.value();
-  ASSERT_TRUE(result_value.IsUnknownSet());
-  const UnknownSet* result_set = result_value.UnknownSetOrDie();
+  ASSERT_OK_AND_ASSIGN(CelValue result,
+                       RunExpressionWithCelValues(values, &arena, true));
+  ASSERT_TRUE(result.IsUnknownSet());
+  const UnknownSet* result_set = result.UnknownSetOrDie();
   EXPECT_THAT(result_set->unknown_attributes().attributes().size(), Eq(2));
 }
 
@@ -230,7 +199,4 @@ INSTANTIATE_TEST_SUITE_P(CombinedCreateListTest, CreateListStepTest,
 
 }  // namespace
 
-}  // namespace runtime
-}  // namespace expr
-}  // namespace api
-}  // namespace google
+}  // namespace google::api::expr::runtime
