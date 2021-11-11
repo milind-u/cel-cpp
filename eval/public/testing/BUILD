@@ -13,9 +13,9 @@ cc_library(
         "//eval/public:cel_value",
         "//eval/public:set_util",
         "//eval/public:unknown_set",
+        "//internal:testing",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
-        "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -27,10 +27,9 @@ cc_test(
         ":matchers",
         "//eval/public/structs:cel_proto_wrapper",
         "//eval/testutil:test_message_cc_proto",
+        "//internal:testing",
         "//testutil:util",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/time",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
     ],
 )

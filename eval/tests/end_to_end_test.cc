@@ -1,8 +1,6 @@
 #include "google/api/expr/v1alpha1/syntax.pb.h"
 #include "google/protobuf/struct.pb.h"
 #include "google/protobuf/text_format.h"
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "eval/public/activation.h"
 #include "eval/public/builtin_func_registrar.h"
 #include "eval/public/cel_expr_builder_factory.h"
@@ -10,8 +8,9 @@
 #include "eval/public/cel_value.h"
 #include "eval/public/structs/cel_proto_wrapper.h"
 #include "eval/testutil/test_message.pb.h"
+#include "internal/status_macros.h"
+#include "internal/testing.h"
 #include "testutil/util.h"
-#include "base/status_macros.h"
 
 namespace google {
 namespace api {
@@ -56,12 +55,8 @@ TEST(EndToEndTest, SimpleOnePlusOne) {
   ASSERT_OK(RegisterBuiltinFunctions(builder->GetRegistry()));
 
   // Create CelExpression from AST (Expr object).
-  auto cel_expression_status = builder->CreateExpression(&expr, &source_info);
-
-  ASSERT_OK(cel_expression_status);
-
-  auto cel_expression = std::move(cel_expression_status.value());
-
+  ASSERT_OK_AND_ASSIGN(auto cel_expr,
+                       builder->CreateExpression(&expr, &source_info));
   Activation activation;
 
   // Bind value to "var" parameter.
@@ -70,12 +65,7 @@ TEST(EndToEndTest, SimpleOnePlusOne) {
   Arena arena;
 
   // Run evaluation.
-  auto eval_status = cel_expression->Evaluate(activation, &arena);
-
-  ASSERT_OK(eval_status);
-
-  CelValue result = eval_status.value();
-
+  ASSERT_OK_AND_ASSIGN(CelValue result, cel_expr->Evaluate(activation, &arena));
   ASSERT_TRUE(result.IsInt64());
   EXPECT_EQ(result.Int64OrDie(), 2);
 }
@@ -140,12 +130,8 @@ TEST(EndToEndTest, EmptyStringCompare) {
   ASSERT_OK(RegisterBuiltinFunctions(builder->GetRegistry()));
 
   // Create CelExpression from AST (Expr object).
-  auto cel_expression_status = builder->CreateExpression(&expr, &source_info);
-
-  ASSERT_OK(cel_expression_status);
-
-  auto cel_expression = std::move(cel_expression_status.value());
-
+  ASSERT_OK_AND_ASSIGN(auto cel_expr,
+                       builder->CreateExpression(&expr, &source_info));
   Activation activation;
 
   // Bind value to "var" parameter.
@@ -159,12 +145,7 @@ TEST(EndToEndTest, EmptyStringCompare) {
   activation.InsertValue("var", CelProtoWrapper::CreateMessage(&data, &arena));
 
   // Run evaluation.
-  auto eval_status = cel_expression->Evaluate(activation, &arena);
-
-  ASSERT_OK(eval_status);
-
-  CelValue result = eval_status.value();
-
+  ASSERT_OK_AND_ASSIGN(CelValue result, cel_expr->Evaluate(activation, &arena));
   ASSERT_TRUE(result.IsBool());
   EXPECT_TRUE(result.BoolOrDie());
 }
@@ -202,20 +183,14 @@ TEST(EndToEndTest, NullLiteral) {
   ASSERT_OK(RegisterBuiltinFunctions(builder->GetRegistry()));
 
   // Create CelExpression from AST (Expr object).
-  auto cel_expression_status = builder->CreateExpression(&expr, &source_info);
-  ASSERT_OK(cel_expression_status);
-
-  auto cel_expression = std::move(cel_expression_status.value());
+  ASSERT_OK_AND_ASSIGN(auto cel_expr,
+                       builder->CreateExpression(&expr, &source_info));
   Activation activation;
   Arena arena;
   // Run evaluation.
-  auto eval_status = cel_expression->Evaluate(activation, &arena);
-
-  ASSERT_OK(eval_status);
-
+  ASSERT_OK_AND_ASSIGN(CelValue result, cel_expr->Evaluate(activation, &arena));
   google::protobuf::Value null_value;
   null_value.set_null_value(protobuf::NULL_VALUE);
-  CelValue result = eval_status.value();
   ASSERT_TRUE(result.IsNull());
 }
 

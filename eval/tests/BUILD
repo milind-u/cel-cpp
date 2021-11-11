@@ -17,7 +17,6 @@ cc_test(
     tags = ["manual"],
     deps = [
         ":request_context_cc_proto",
-        "//base:status_macros",
         "//eval/public:activation",
         "//eval/public:builtin_func_registrar",
         "//eval/public:cel_expr_builder_factory",
@@ -26,13 +25,14 @@ cc_test(
         "//eval/public/containers:container_backed_list_impl",
         "//eval/public/containers:container_backed_map_impl",
         "//eval/public/structs:cel_proto_wrapper",
+        "//internal:status_macros",
+        "//internal:testing",
         "@com_github_google_benchmark//:benchmark",
         "@com_github_google_benchmark//:benchmark_main",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:node_hash_set",
         "@com_google_absl//absl/strings",
         "@com_google_googleapis//google/api/expr/v1alpha1:syntax_cc_proto",
-        "@com_google_googletest//:gtest_main",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -44,7 +44,6 @@ cc_test(
         "end_to_end_test.cc",
     ],
     deps = [
-        "//base:status_macros",
         "//eval/public:activation",
         "//eval/public:builtin_func_registrar",
         "//eval/public:cel_expr_builder_factory",
@@ -52,9 +51,10 @@ cc_test(
         "//eval/public:cel_value",
         "//eval/public/structs:cel_proto_wrapper",
         "//eval/testutil:test_message_cc_proto",
+        "//internal:status_macros",
+        "//internal:testing",
         "//testutil:util",
         "@com_google_googleapis//google/api/expr/v1alpha1:syntax_cc_proto",
-        "@com_google_googletest//:gtest_main",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -66,7 +66,6 @@ cc_test(
         "unknowns_end_to_end_test.cc",
     ],
     deps = [
-        "//base:status_macros",
         "//eval/eval:evaluator_core",
         "//eval/public:activation",
         "//eval/public:builtin_func_registrar",
@@ -80,10 +79,11 @@ cc_test(
         "//eval/public/containers:container_backed_list_impl",
         "//eval/public/containers:container_backed_map_impl",
         "//eval/public/structs:cel_proto_wrapper",
+        "//internal:status_macros",
+        "//internal:testing",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest_main",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -122,9 +122,9 @@ cc_library(
     testonly = 1,
     hdrs = ["mock_cel_expression.h"],
     deps = [
-        "//eval/public:activation",
+        "//eval/public:base_activation",
         "//eval/public:cel_expression",
+        "//internal:testing",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
     ],
 )

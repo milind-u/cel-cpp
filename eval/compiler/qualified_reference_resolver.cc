@@ -1,5 +1,6 @@
 #include "eval/compiler/qualified_reference_resolver.h"
 
+#include <cstdint>
 #include <functional>
 
 #include "absl/status/status.h"
@@ -12,18 +13,15 @@
 #include "eval/eval/expression_build_warning.h"
 #include "eval/public/cel_builtins.h"
 #include "eval/public/cel_function_registry.h"
-#include "base/status_macros.h"
+#include "internal/status_macros.h"
 
-namespace google {
-namespace api {
-namespace expr {
-namespace runtime {
+namespace google::api::expr::runtime {
 
 namespace {
 
-using google::api::expr::v1alpha1::Constant;
-using google::api::expr::v1alpha1::Expr;
-using google::api::expr::v1alpha1::Reference;
+using ::google::api::expr::v1alpha1::Constant;
+using ::google::api::expr::v1alpha1::Expr;
+using ::google::api::expr::v1alpha1::Reference;
 
 // Determines if function is implemented with custom evaluation step instead of
 // registered.
@@ -48,7 +46,7 @@ absl::optional<std::string> ToNamespace(const Expr& expr) {
       if (!maybe_parent_namespace.has_value()) {
         return absl::nullopt;
       }
-      return absl::StrCat(maybe_parent_namespace.value(), ".",
+      return absl::StrCat(*maybe_parent_namespace, ".",
                           expr.select_expr().field());
     default:
       return absl::nullopt;
@@ -131,10 +129,9 @@ class ReferenceResolver {
         auto* list_expr = out->mutable_list_expr();
         int list_size = list_expr->elements_size();
         for (int i = 0; i < list_size; i++) {
-          absl::StatusOr<bool> rewrite_result =
-              Rewrite(list_expr->mutable_elements(i));
-          RETURN_IF_ERROR(rewrite_result.status());
-          updated = updated || rewrite_result.value();
+          CEL_ASSIGN_OR_RETURN(bool rewrite_result,
+                               Rewrite(list_expr->mutable_elements(i)));
+          updated = updated || rewrite_result;
         }
         return updated;
       }
@@ -143,27 +140,37 @@ class ReferenceResolver {
       }
       case Expr::kComprehensionExpr: {
         auto* out_expr = out->mutable_comprehension_expr();
-        absl::StatusOr<bool> rewrite_result;
+        bool rewrite_result;
 
-        rewrite_result = Rewrite(out_expr->mutable_accu_init());
-        RETURN_IF_ERROR(rewrite_result.status());
-        updated = updated || rewrite_result.value();
+        if (out_expr->has_accu_init()) {
+          CEL_ASSIGN_OR_RETURN(rewrite_result,
+                               Rewrite(out_expr->mutable_accu_init()));
+          updated = updated || rewrite_result;
+        }
 
-        rewrite_result = Rewrite(out_expr->mutable_iter_range());
-        RETURN_IF_ERROR(rewrite_result.status());
-        updated = updated || rewrite_result.value();
+        if (out_expr->has_iter_range()) {
+          CEL_ASSIGN_OR_RETURN(rewrite_result,
+                               Rewrite(out_expr->mutable_iter_range()));
+          updated = updated || rewrite_result;
+        }
 
-        rewrite_result = Rewrite(out_expr->mutable_loop_condition());
-        RETURN_IF_ERROR(rewrite_result.status());
-        updated = updated || rewrite_result.value();
+        if (out_expr->has_loop_condition()) {
+          CEL_ASSIGN_OR_RETURN(rewrite_result,
+                               Rewrite(out_expr->mutable_loop_condition()));
+          updated = updated || rewrite_result;
+        }
 
-        rewrite_result = Rewrite(out_expr->mutable_loop_step());
-        RETURN_IF_ERROR(rewrite_result.status());
-        updated = updated || rewrite_result.value();
+        if (out_expr->has_loop_step()) {
+          CEL_ASSIGN_OR_RETURN(rewrite_result,
+                               Rewrite(out_expr->mutable_loop_step()));
+          updated = updated || rewrite_result;
+        }
 
-        rewrite_result = Rewrite(out_expr->mutable_result());
-        RETURN_IF_ERROR(rewrite_result.status());
-        updated = updated || rewrite_result.value();
+        if (out_expr->has_result()) {
+          CEL_ASSIGN_OR_RETURN(rewrite_result,
+                               Rewrite(out_expr->mutable_result()));
+          updated = updated || rewrite_result;
+        }
 
         return updated;
       }
@@ -183,7 +190,7 @@ class ReferenceResolver {
                                            const Reference* reference) {
     auto* call_expr = out->mutable_call_expr();
     if (reference != nullptr && reference->overload_id_size() == 0) {
-      RETURN_IF_ERROR(warnings_->AddWarning(absl::InvalidArgumentError(
+      CEL_RETURN_IF_ERROR(warnings_->AddWarning(absl::InvalidArgumentError(
           absl::StrCat("Reference map doesn't provide overloads for ",
                        out->call_expr().function()))));
     }
@@ -195,7 +202,7 @@ class ReferenceResolver {
       // should be rewritten.
       absl::StatusOr<bool> rewrite_result =
           Rewrite(call_expr->mutable_target());
-      RETURN_IF_ERROR(rewrite_result.status());
+      CEL_RETURN_IF_ERROR(rewrite_result.status());
       bool target_updated = rewrite_result.value();
       updated = target_updated;
       if (!target_updated) {
@@ -204,7 +211,7 @@ class ReferenceResolver {
         auto maybe_namespace = ToNamespace(call_expr->target());
         if (maybe_namespace.has_value()) {
           std::string resolved_name =
-              absl::StrCat(maybe_namespace.value(), ".", call_expr->function());
+              absl::StrCat(*maybe_namespace, ".", call_expr->function());
           auto maybe_resolved_function =
               BestOverloadMatch(resolver_, resolved_name, arg_num);
           if (maybe_resolved_function.has_value()) {
@@ -220,7 +227,7 @@ class ReferenceResolver {
       auto maybe_resolved_function =
           BestOverloadMatch(resolver_, call_expr->function(), arg_num);
       if (!maybe_resolved_function.has_value()) {
-        RETURN_IF_ERROR(warnings_->AddWarning(absl::InvalidArgumentError(
+        CEL_RETURN_IF_ERROR(warnings_->AddWarning(absl::InvalidArgumentError(
             absl::StrCat("No overload found in reference resolve step for ",
                          call_expr->function()))));
       } else if (maybe_resolved_function.value() != call_expr->function()) {
@@ -234,13 +241,13 @@ class ReferenceResolver {
         !OverloadExists(resolver_, call_expr->function(),
                         ArgumentsMatcher(arg_num + 1),
                         /* receiver_style= */ true)) {
-      RETURN_IF_ERROR(warnings_->AddWarning(absl::InvalidArgumentError(
+      CEL_RETURN_IF_ERROR(warnings_->AddWarning(absl::InvalidArgumentError(
           absl::StrCat("No overload found in reference resolve step for ",
                        call_expr->function()))));
     }
     for (int i = 0; i < arg_num; i++) {
       absl::StatusOr<bool> rewrite_result = Rewrite(call_expr->mutable_args(i));
-      RETURN_IF_ERROR(rewrite_result.status());
+      CEL_RETURN_IF_ERROR(rewrite_result.status());
       updated = updated || rewrite_result.value();
     }
     return updated;
@@ -253,7 +260,7 @@ class ReferenceResolver {
                                              const Reference* reference) {
     if (reference != nullptr) {
       if (out->select_expr().test_only()) {
-        RETURN_IF_ERROR(warnings_->AddWarning(
+        CEL_RETURN_IF_ERROR(warnings_->AddWarning(
             absl::InvalidArgumentError("Reference map points to a presence "
                                        "test -- has(container.attr)")));
       } else if (!reference->name().empty()) {
@@ -294,7 +301,7 @@ class ReferenceResolver {
           break;
         case Expr::CreateStruct::Entry::kMapKey: {
           auto key_updated = Rewrite(new_entry->mutable_map_key());
-          RETURN_IF_ERROR(key_updated.status());
+          CEL_RETURN_IF_ERROR(key_updated.status());
           updated = updated || key_updated.value();
           break;
         }
@@ -304,7 +311,7 @@ class ReferenceResolver {
           break;
       }
       auto value_updated = Rewrite(new_entry->mutable_value());
-      RETURN_IF_ERROR(value_updated.status());
+      CEL_RETURN_IF_ERROR(value_updated.status());
       updated = updated || value_updated.value();
     }
     return updated;
@@ -332,7 +339,4 @@ absl::StatusOr<absl::optional<Expr>> ResolveReferences(
   }
 }
 
-}  // namespace runtime
-}  // namespace expr
-}  // namespace api
-}  // namespace google
+}  // namespace google::api::expr::runtime

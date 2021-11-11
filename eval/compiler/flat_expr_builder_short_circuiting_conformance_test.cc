@@ -3,8 +3,6 @@
 #include <memory>
 
 #include "google/protobuf/text_format.h"
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
@@ -16,15 +14,14 @@
 #include "eval/public/cel_options.h"
 #include "eval/public/unknown_attribute_set.h"
 #include "eval/public/unknown_set.h"
-#include "base/status_macros.h"
+#include "internal/status_macros.h"
+#include "internal/testing.h"
 
-namespace google {
-namespace api {
-namespace expr {
-namespace runtime {
+namespace google::api::expr::runtime {
+
 namespace {
 
-using google::api::expr::v1alpha1::Expr;
+using ::google::api::expr::v1alpha1::Expr;
 using testing::Eq;
 using testing::SizeIs;
 
@@ -86,13 +83,13 @@ call_expr {
 void BuildAndEval(CelExpressionBuilder* builder, const Expr& expr,
                   const Activation& activation, google::protobuf::Arena* arena,
                   CelValue* result) {
-  auto expression_status = builder->CreateExpression(&expr, nullptr);
-  ASSERT_OK(expression_status.status());
+  ASSERT_OK_AND_ASSIGN(auto expression,
+                       builder->CreateExpression(&expr, nullptr));
 
-  auto result_status = expression_status.value()->Evaluate(activation, arena);
-  ASSERT_OK(result_status.status());
+  auto value = expression->Evaluate(activation, arena);
+  ASSERT_OK(value);
 
-  *result = result_status.value();
+  *result = *value;
 }
 
 class ShortCircuitingTest : public testing::TestWithParam<bool> {
@@ -474,7 +471,5 @@ INSTANTIATE_TEST_SUITE_P(Test, ShortCircuitingTest,
                          testing::Values(false, true), &TestName);
 
 }  // namespace
-}  // namespace runtime
-}  // namespace expr
-}  // namespace api
-}  // namespace google
+
+}  // namespace google::api::expr::runtime

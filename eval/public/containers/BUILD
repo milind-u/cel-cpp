@@ -15,6 +15,7 @@ cc_library(
         "field_access.h",
     ],
     deps = [
+        "//common:overflow",
         "//eval/public:cel_value",
         "//eval/public/structs:cel_proto_wrapper",
         "@com_google_absl//absl/status",
@@ -98,8 +99,7 @@ cc_test(
     deps = [
         ":container_backed_map_impl",
         "//eval/public:cel_value",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
+        "//internal:testing",
     ],
 )
 
@@ -111,10 +111,9 @@ cc_test(
     ],
     deps = [
         ":field_backed_list_impl",
-        "//eval/eval:evaluator_core",
         "//eval/testutil:test_message_cc_proto",
+        "//internal:testing",
         "//testutil:util",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -127,9 +126,9 @@ cc_test(
     deps = [
         ":field_backed_map_impl",
         "//eval/testutil:test_message_cc_proto",
+        "//internal:testing",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -139,10 +138,10 @@ cc_test(
     deps = [
         ":field_access",
         "//internal:proto_util",
+        "//internal:testing",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/time",
         "@com_google_cel_spec//proto/test/v1/proto3:test_all_types_cc_proto",
-        "@com_google_googletest//:gtest_main",
         "@com_google_protobuf//:protobuf",
     ],
 )

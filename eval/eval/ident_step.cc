@@ -1,17 +1,17 @@
 #include "eval/eval/ident_step.h"
 
+#include <cstdint>
+#include <string>
+
 #include "google/protobuf/arena.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/substitute.h"
+#include "absl/strings/str_cat.h"
 #include "eval/eval/attribute_trail.h"
 #include "eval/eval/evaluator_core.h"
 #include "eval/eval/expression_step_base.h"
 #include "eval/public/unknown_attribute_set.h"
 
-namespace google {
-namespace api {
-namespace expr {
-namespace runtime {
+namespace google::api::expr::runtime {
 
 namespace {
 class IdentStep : public ExpressionStepBase {
@@ -82,8 +82,7 @@ void IdentStep::DoEvaluate(ExecutionFrame* frame, CelValue* result,
   } else {
     *result = CreateErrorValue(
         frame->arena(),
-        absl::Substitute("No value with name \"$0\" found in Activation",
-                         name_));
+        absl::StrCat("No value with name \"", name_, "\" found in Activation"));
   }
 }
 
@@ -105,7 +104,4 @@ absl::StatusOr<std::unique_ptr<ExpressionStep>> CreateIdentStep(
   return absl::make_unique<IdentStep>(ident_expr->name(), expr_id);
 }
 
-}  // namespace runtime
-}  // namespace expr
-}  // namespace api
-}  // namespace google
+}  // namespace google::api::expr::runtime
