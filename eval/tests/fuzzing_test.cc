@@ -251,8 +251,8 @@ TEST(FuzzingTest, FlippingBitsInSerializedExpr) {
   std::srand(kRandSeed);
   for (int i = 0; i < 1000; i++) {
     const std::string ser_expr_cp = ser_expr;
-    const int bitsToFlip = std::rand() % (ser_expr_cp.size() / 3);
-    for (int j = 0; j < bitsToFlip; j++) {
+    const int bits_to_flip = std::rand() % (ser_expr_cp.size() / 3);
+    for (int j = 0; j < bits_to_flip; j++) {
       FlipBitAt(std::rand() % ser_expr_cp.size(), ser_expr);
       TestFlippingBits(ser_expr_cp, source_info, builder.get());
     }
